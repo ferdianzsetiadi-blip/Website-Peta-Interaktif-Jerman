@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deutschland im Blick - Interaktive Karte</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        de: {
+                            black: '#121212',
+                            red: '#DD0000',
+                            gold: '#FFCC00',
+                            goldHover: '#E6B800',
+                            darkBg: '#18181B',
+                            cardDark: '#27272A',
+                            accent: '#3B82F6'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Map State Styling */
+        .state-path {
+            fill: #3F3F46;
+            stroke: #27272A;
+            stroke-width: 1.5;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        
+        .dark .state-path {
+            fill: #27272A;
+            stroke: #18181B;
+        }
+
+        .state-path:hover {
+            fill: #DD0000 !important;
+            stroke: #FFCC00;
+            stroke-width: 2.5;
+            filter: drop-shadow(0 0 8px rgba(221, 0, 0, 0.6));
+            transform: translateY(-2px);
+        }
+
+        .state-path.active {
+            fill: #FFCC00 !important;
+            stroke: #DD0000;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 12px rgba(255, 204, 0, 0.8));
+        }
+
+        .map-container {
+            position: relative;
+            filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3));
+        }
+
+        /* Tooltip style */
+        #tooltip {
+            position: absolute;
+            display: none;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 0.15s ease-in-out;
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(39, 39, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .light .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4B5563;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6B7280;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-de-darkBg text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header / Navbar -->
+    <header class="sticky top-0 z-40 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('map')">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-black via-de-red to-de-gold flex items-center justify-center shadow-md">
+                    <i class="fa-solid me-0 text-white text-lg">🇩🇪</i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-red-600 to-amber-500 bg-clip-text text-transparent">
+                        Deutschland im Blick
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-zinc-400 font-medium">Interaktive Karte und Deutsch lernen</p>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center space-x-1">
+                <button onclick="switchTab('map')" id="nav-map" class="nav-btn px-3 py-2 rounded-lg text-sm font-semibold transition bg-de-red text-white">
+                    <i class="fa-solid font-normal fa-map-marked-alt mr-1.5"></i>Interaktive Karte
+                </button>
+                </button>
+                <button onclick="switchTab('vocab')" id="nav-vocab" class="nav-btn px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
+                    <i class="fa-solid fa-book-open mr-1.5"></i>Wortschatz
+                </button>
+                <button onclick="switchTab('about')" id="nav-about" class="nav-btn px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
+                    <i class="fa-solid fa-circle-info mr-1.5"></i>Tentang
+                </button>
+            </nav>
+
+            <!-- Actions -->
+            <div class="flex items-center space-x-2">
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:inline"></i>
+                </button>
+                <!-- Mobile menu button -->
+                <button onclick="toggleMobileMenu()" class="md:hidden p-2.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Dropdown -->
+        <div id="mobileMenu" class="hidden md:hidden px-4 pt-2 pb-4 border-b border-slate-200 dark:border-zinc-800 space-y-1 bg-white dark:bg-zinc-900">
+            <button onclick="switchTab('map'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-md font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800">Interaktive Karte</button>
+            <button onclick="switchTab('vocab'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-md font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800">Wortschatz</button>
+            <button onclick="switchTab('about'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-md font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800">Tentang</button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- ================= TAB 1: PETA INTERAKTIF ================= -->
+        <section id="tab-map" class="tab-content block">
+            <!-- Search & Filters -->
+            <div class="mb-6 bg-white dark:bg-zinc-800 p-4 rounded-xl border border-slate-200 dark:border-zinc-700/60 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div class="relative w-full md:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Cari state atau kota (misal: Bayern, Berlin)..." class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-de-red dark:text-white">
+                </div>
+                <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                    <button onclick="filterRegion('all')" class="region-filter border border-de-red bg-de-red text-white text-xs px-3 py-1.5 rounded-full font-medium transition">Alle Regionen</button>
+                    <button onclick="filterRegion('Utara')" class="region-filter border border-slate-300 dark:border-zinc-700 text-xs px-3 py-1.5 rounded-full font-medium hover:border-de-red transition">Norden</button>
+                    <button onclick="filterRegion('Selatan')" class="region-filter border border-slate-300 dark:border-zinc-700 text-xs px-3 py-1.5 rounded-full font-medium hover:border-de-red transition">Süden</button>
+                    <button onclick="filterRegion('Barat')" class="region-filter border border-slate-300 dark:border-zinc-700 text-xs px-3 py-1.5 rounded-full font-medium hover:border-de-red transition">Westen</button>
+                    <button onclick="filterRegion('Timur')" class="region-filter border border-slate-300 dark:border-zinc-700 text-xs px-3 py-1.5 rounded-full font-medium hover:border-de-red transition">Ost</button>
+                </div>
+            </div>
+
+            <!-- Map + Detail Panel Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- SVG Map Viewport (Lg: 7 cols) -->
+                <div class="lg:col-span-7 bg-white dark:bg-zinc-800/90 rounded-2xl p-4 sm:p-6 border border-slate-200 dark:border-zinc-700/60 shadow-lg relative min-h-[480px] flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-de-red dark:text-de-gold">Peta SVG 16 Bundesländer</span>
+                        <span class="text-xs text-slate-500 dark:text-zinc-400"><i class="fa-solid fa-hand-pointer mr-1"></i>Klicken Sie auf eine Region, um Details anzuzeigen.</span>
+                    </div>
+
+                    <!-- SVG Map Object -->
+                    <div class="map-container flex-1 flex items-center justify-center p-2">
+                        <svg id="germany-map" viewBox="0 0 600 750" class="w-full h-auto max-h-[580px] drop-shadow-md">
+                            <!-- Schleswig-Holstein -->
+                            <path id="DE-SH" data-id="SH" class="state-path" d="M260 40 L310 30 L350 70 L340 120 L280 135 L250 110 L230 70 Z" />
+                            <!-- Hamburg -->
+                            <path id="DE-HH" data-id="HH" class="state-path" d="M285 138 L305 138 L305 152 L285 152 Z" />
+                            <!-- Mecklenburg-Vorpommern -->
+                            <path id="DE-MV" data-id="MV" class="state-path" d="M342 68 L480 80 L520 140 L440 160 L340 122 Z" />
+                            <!-- Niedersachsen -->
+                            <path id="DE-NI" data-id="NI" class="state-path" d="M150 120 L248 112 L278 136 L338 124 L340 162 L390 180 L350 250 L270 240 L230 270 L180 250 L140 180 Z" />
+                            <!-- Bremen -->
+                            <path id="DE-HB" data-id="HB" class="state-path" d="M210 160 L225 160 L225 175 L210 175 Z" />
+                            <!-- Brandenburg -->
+                            <path id="DE-BB" data-id="BB" class="state-path" d="M392 182 L442 162 L530 200 L500 310 L440 330 L380 270 Z" />
+                            <!-- Berlin -->
+                            <path id="DE-BE" data-id="BE" class="state-path" d="M440 235 L460 235 L460 252 L440 252 Z" />
+                            <!-- Sachsen-Anhalt -->
+                            <path id="DE-ST" data-id="ST" class="state-path" d="M352 252 L388 182 L438 232 L378 272 L380 340 L320 330 L320 270 Z" />
+                            <!-- Nordrhein-Westfalen -->
+                            <path id="DE-NW" data-id="NW" class="state-path" d="M80 210 L138 182 L178 252 L228 272 L230 330 L170 380 L100 350 L80 280 Z" />
+                            <!-- Hessen -->
+                            <path id="DE-HE" data-id="HE" class="state-path" d="M232 332 L318 332 L290 440 L230 460 L195 400 L232 382 Z" />
+                            <!-- Thüringen -->
+                            <path id="DE-TH" data-id="TH" class="state-path" d="M322 332 L378 342 L410 400 L320 420 L292 438 Z" />
+                            <!-- Sachsen -->
+                            <path id="DE-SN" data-id="SN" class="state-path" d="M382 342 L442 332 L530 360 L480 430 L412 402 Z" />
+                            <!-- Rheinland-Pfalz -->
+                            <path id="DE-RP" data-id="RP" class="state-path" d="M98 352 L168 382 L192 402 L228 462 L170 510 L120 480 L110 410 Z" />
+                            <!-- Saarland -->
+                            <path id="DE-SL" data-id="SL" class="state-path" d="M108 482 L145 475 L155 510 L120 520 Z" />
+                            <!-- Baden-Württemberg -->
+                            <path id="DE-BW" data-id="BW" class="state-path" d="M172 512 L228 464 L288 472 L270 630 L210 650 L160 590 Z" />
+                            <!-- Bayern -->
+                            <path id="DE-BY" data-id="BY" class="state-path" d="M292 442 L322 422 L412 404 L482 432 L490 560 L400 680 L272 632 L290 474 Z" />
+                        </svg>
+                        
+                        <!-- Tooltip Hover Element -->
+                        <div id="tooltip" class="bg-zinc-900/90 text-white text-xs py-1.5 px-3 rounded-lg shadow-xl border border-zinc-700 backdrop-blur-sm pointer-events-none">
+                            <p id="tooltip-title" class="font-bold text-de-gold"></p>
+                            <p id="tooltip-capital" class="text-zinc-300 text-[11px]"></p>
+                        </div>
+                    </div>
+
+                    <!-- Map Legend -->
+                    <div class="mt-2 pt-3 border-t border-slate-200 dark:border-zinc-700/60 flex flex-wrap justify-between text-xs text-slate-500 dark:text-zinc-400">
+                        <span><i class="fa-solid fa-circle text-de-red mr-1"></i> Ausgewählt</span>
+                        <span><i class="fa-solid fa-circle text-de-gold mr-1"></i> Aktiv</span>
+                        <span>Total: <strong>16 Bundesländer</strong></span>
+                    </div>
+                </div>
+
+                <!-- State Detail Panel (Lg: 5 cols) -->
+                <div class="lg:col-span-5 bg-white dark:bg-zinc-800 rounded-2xl p-6 border border-slate-200 dark:border-zinc-700/60 shadow-lg min-h-[480px]">
+                    <div id="detail-placeholder" class="h-full flex flex-col items-center justify-center text-center py-16 text-slate-400 dark:text-zinc-500 space-y-3">
+                        <i class="fa-solid fa-map-location-dot text-6xl text-slate-300 dark:text-zinc-700 animate-bounce"></i>
+                        <h3 class="text-lg font-semibold text-slate-600 dark:text-zinc-300">Wählen Sie einen Bereich auf der Karte aus.</h3>
+                        <p class="text-xs max-w-xs">Klicke auf eines der *Bundesländer* auf der Karte, um Informationen anzuzeigen.</p>
+                    </div>
+
+                    <div id="detail-content" class="hidden space-y-5">
+                        <!-- Header State -->
+                        <div class="flex items-start justify-between border-b border-slate-200 dark:border-zinc-700/80 pb-4">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <span id="state-flag-emoji" class="text-3xl">🇩🇪</span>
+                                    <div>
+                                        <h2 id="state-name" class="text-2xl font-bold text-slate-900 dark:text-white">Bayern</h2>
+                                        <p id="state-capital" class="text-xs text-slate-500 dark:text-zinc-400">Hauptstadt: <strong class="text-de-red dark:text-de-gold">München</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <span id="state-region-badge" class="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1 rounded-full font-medium border border-amber-300 dark:border-amber-800">
+                                Süden
+                            </span>
+                        </div>
+
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div class="bg-slate-50 dark:bg-zinc-900/60 p-3 rounded-xl border border-slate-200/80 dark:border-zinc-700/50">
+                                <span class="text-slate-400 dark:text-zinc-500 block mb-1"><i class="fa-solid fa-ruler-combined mr-1"></i>Die Fläche</span>
+                                <span id="state-area" class="font-semibold text-sm text-slate-800 dark:text-zinc-200">70.550 km²</span>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-zinc-900/60 p-3 rounded-xl border border-slate-200/80 dark:border-zinc-700/50">
+                                <span class="text-slate-400 dark:text-zinc-500 block mb-1"><i class="fa-solid fa-users mr-1"></i>Die Einwohoner</span>
+                                <span id="state-population" class="font-semibold text-sm text-slate-800 dark:text-zinc-200">13,1 Millionen</span>
+                            </div>
+                        </div>
+
+                        <!-- Highlights & Cultural Info -->
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <h4 class="font-bold text-slate-700 dark:text-zinc-300 mb-1"><i class="fa-solid fa-landmark text-de-red mr-1.5"></i>Berühmte Sehenswürdigkeiten:</h4>
+                                <p id="state-landmarks" class="text-slate-600 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800"></p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 dark:text-zinc-300 mb-1"><i class="fa-solid fa-utensils text-de-gold mr-1.5"></i>Typische Spezialitäten:</h4>
+                                <p id="state-culinary" class="text-slate-600 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800"></p>
+                            </div>
+                        </div>
+
+                        <!-- Audio Vocab / Speech Section -->
+                        <div class="bg-gradient-to-r from-red-950/20 to-amber-950/20 border border-de-red/20 dark:border-de-gold/20 p-4 rounded-xl space-y-2">
+                            <h4 class="text-xs font-bold text-de-red dark:text-de-gold flex items-center justify-between">
+                                <span><i class="fa-solid fa-volume-high mr-1.5"></i>Lokale Ausdrücken und Aussprache</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Klicken Sie auf die Schaltfläche, um die Aussprache zu hören</span>
+                            </h4>
+                            <div class="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-700">
+                                <div>
+                                    <p id="phrase-de" class="font-bold text-sm text-slate-800 dark:text-white">"Grüß Gott!"</p>
+                                    <p id="phrase-id" class="text-xs text-slate-500 dark:text-zinc-400">Salam khas Bayern (Halo / Salam)</p>
+                                </div>
+                                <button onclick="speakGermanText(document.getElementById('phrase-de').innerText)" class="w-9 h-9 rounded-full bg-de-red hover:bg-red-700 text-white flex items-center justify-center shadow transition active:scale-95" title="Dengarkan Audio">
+                                    <i class="fa-solid fa-play text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: KUIS INTERAKTIF ================= -->
+        
+
+        <!-- ================= TAB 3: DAFTAR KOSAKATA ================= -->
+        <section id="tab-vocab" class="tab-content hidden">
+            <div class="bg-white dark:bg-zinc-800 rounded-2xl p-6 border border-slate-200 dark:border-zinc-700 shadow-xl space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-white"><i class="fa-solid fa-book-bookmark text-de-gold mr-2"></i>Grundwortschatz - Kosakata Dasar</h2>
+                        <p class="text-xs text-slate-500 dark:text-zinc-400">Pelajari frasa penting bahasa Jerman untuk percakapan & liburan.</p>
+                    </div>
+                    <input type="text" id="vocabSearch" oninput="filterVocab()" placeholder="Cari kosakata..." class="px-4 py-2 bg-slate-50 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg text-xs w-full sm:w-64 focus:outline-none dark:text-white">
+                </div>
+
+                <!-- Vocab Grid -->
+                <div id="vocab-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Dynamic Vocab Cards -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: TENTANG ================= -->
+        <section id="tab-about" class="tab-content hidden">
+            <div class="max-w-3xl mx-auto bg-white dark:bg-zinc-800 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-zinc-700 shadow-xl space-y-6">
+                <div class="text-center space-y-2">
+                    <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Tentang <span class="text-de-red">Deutschland im Blick</span></h2>
+                    <p class="text-xs text-slate-500 dark:text-zinc-400">Media Pembelajaran Interaktif Peta & Bahasa Jerman</p>
+                </div>
+                <div class="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed space-y-3">
+                    <p><strong>Deutschland im Blick</strong> adalah aplikasi web interaktif yang dirancang untuk membantu pelajar, wisatawan, dan pengagum kebudayaan Jerman mengenal 16 negara bagian (*Bundesländer*) di Jerman secara visual dan terstruktur.</p>
+                    <p>Fitur unggulan meliputi:</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Peta vektor SVG responsif dengan visualisasi 16 *Bundesländer*.</li>
+                        <li>Integrasi **Web Speech API (Text-To-Speech)** untuk melatih pengucapan bahasa Jerman standar (*Hochdeutsch*).</li>
+                        <li>Informasi geografis, landmark, makanan khas daerah, dan kosakata lokal.</li>
+                        <li>Kuis pengetahuan umum interaktif dengan sistem skor dan pewaktu.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800 mt-auto py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 dark:text-zinc-500">
+            <p>© 2026 Deutschland im Blick — Belajar Bahasa & Geografi Jerman secara Interaktif.</p>
+        </div>
+    </footer>
+
+    <script>
+        /* ================= 1. DATA BUNDESLÄNDER ================= */
+        const bundeslaenderData = {
+            "SH": { name: "Schleswig-Holstein", capital: "Kiel", region: "Utara", area: "15.800 km²", population: "2,9 Millionen", landmarks: "Laut Baltik, Laut Utara, Holstentor Lübeck", culinary: "Finkenwerder Scholle, Labskaus", phraseDe: "Moin Moin!", phraseId: "Halo (Salam khas utara)" },
+            "HH": { name: "Hamburg", capital: "Hamburg", region: "Utara", area: "755 km²", population: "1,85 Millionen", landmarks: "Elbphilharmonie, Speicherstadt, Pelabuhan Hamburg", culinary: "Franzbrötchen, Aalsuppe", phraseDe: "Moin!", phraseId: "Halo!" },
+            "MV": { name: "Mecklenburg-Vorpommern", capital: "Schwerin", region: "Utara", area: "23.210 km²", population: "1,6 Millionen", landmarks: "Kastil Schwerin, Taman Nasional Jasmund", culinary: "Rote Grütze, Fischbrötchen", phraseDe: "Guten Tag!", phraseId: "Selamat siang!" },
+            "NI": { name: "Niedersachsen", capital: "Hannover", region: "Utara", area: "47.600 km²", population: "8,0 Millionen", landmarks: "Pegunungan Harz, Kebun Herrenhausen", culinary: "Grünkohl mit Pinkel", phraseDe: "Hallo zusammen!", phraseId: "Halo semuanya!" },
+            "HB": { name: "Bremen", capital: "Bremen", region: "Utara", area: "419 km²", population: "680.000", landmarks: "Patung Musisi Kota Bremen, Balai Kota Schnoor", culinary: "Bremer Klaben, Kohl und Pinkel", phraseDe: "Moin moin!", phraseId: "Salam hangat!" },
+            "BB": { name: "Brandenburg", capital: "Potsdam", region: "Timur", area: "29.650 km²", population: "2,5 Millionen", landmarks: "Istana Sanssouci, Hutan Spreewald", culinary: "Spreewälder Gurken", phraseDe: "Guten Tag auch!", phraseId: "Selamat siang juga!" },
+            "BE": { name: "Berlin", capital: "Berlin", region: "Timur", area: "891 km²", population: "3,7 Millionen", landmarks: "Gerbang Brandenburg, Tembok Berlin, Reichstag", culinary: "Currywurst, Berliner Pfannkuchen", phraseDe: "Alles klar?", phraseId: "Semua lancar/baik?" },
+            "ST": { name: "Sachsen-Anhalt", capital: "Magdeburg", region: "Timur", area: "20.450 km²", population: "2,2 Millionen", landmarks: "Katedral Magdeburg, Kota Tua Quedlinburg", culinary: "Harzer Käse, Baumkuchen", phraseDe: "Hallo!", phraseId: "Halo!" },
+            "NW": { name: "Nordrhein-Westfalen", capital: "Düsseldorf", region: "Barat", area: "34.110 km²", population: "17,9 Millionen", landmarks: "Katedral Köln (Kölner Dom), Zeche Zollverein", culinary: "Rheinischer Sauerbraten, Reibekuchen", phraseDe: "Guten Tag!", phraseId: "Selamat siang!" },
+            "HE": { name: "Hessen", capital: "Wiesbaden", region: "Barat", area: "21.110 km²", population: "6,3 Millionen", landmarks: "Skyline Frankfurt, Römerberg, Taman Wilhelmshöhe", culinary: "Frankfurter Grüne Soße, Apfelwein", phraseDe: "Gude!", phraseId: "Halo / Salam!" },
+            "TH": { name: "Thüringen", capital: "Erfurt", region: "Timur", area: "16.200 km²", population: "2,1 Millionen", landmarks: "Kastil Wartburg Eisenach, Hutan Thüringen", culinary: "Thüringer Rostbratwurst, Klöße", phraseDe: "Grüß Gott!", phraseId: "Salam!" },
+            "SN": { name: "Sachsen", capital: "Dresden", region: "Timur", area: "18.450 km²", population: "4,0 Millionen", landmarks: "Frauenkirche Dresden, Zwinger, Bastei", culinary: "Dresdner Christstollen, Eierschecke", phraseDe: "Guten Tag!", phraseId: "Selamat siang!" },
+            "RP": { name: "Rheinland-Pfalz", capital: "Mainz", region: "Barat", area: "19.850 km²", population: "4,1 Millionen", landmarks: "Lembah Sungai Rhein, Kastil Eltz, Porta Nigra Trier", culinary: "Saumagen, Pfälzer Wein", phraseDe: "Hallo zusammen!", phraseId: "Halo teman-teman!" },
+            "SL": { name: "Saarland", capital: "Saarbrücken", region: "Barat", area: "2.570 km²", population: "980.000", landmarks: "Lekukan Sungai Saar (Saarschleife)", culinary: "Schwenker, Dibbelabbes", phraseDe: "Unn, wie?", phraseId: "Apa kabar?" },
+            "BW": { name: "Baden-Württemberg", capital: "Stuttgart", region: "Selatan", area: "35.750 km²", population: "11,1 Millionen", landmarks: "Black Forest (Schwarzwald), Istana Heidelberg", culinary: "Maultaschen, Spätzle, Schwarzwälder Kirschtorte", phraseDe: "Grüß Gott!", phraseId: "Salam sejahtera!" },
+            "BY": { name: "Bayern", capital: "München", region: "Selatan", area: "70.550 km²", population: "13,1 Millionen", landmarks: "Kastil Neuschwanstein, Pegunungan Alpen, Marienplatz", culinary: "Weißwurst, Brezel, Schweinshaxe", phraseDe: "Grüß Gott!", phraseId: "Salam (Khas Bavaria)" }
+        };
+
+        const vocabularyData = [
+            { de: "Guten Morgen", id: "Selamat Pagi", category: "Salam" },
+            { de: "Guten Tag", id: "Selamat Siang", category: "Salam" },
+            { de: "Guten Abend", id: "Selamat Malam", category: "Salam" },
+            { de: "Danke schön", id: "Terima kasih banyak", category: "Sopan Santun" },
+            { de: "Bitte sehr", id: "Sama-sama / Silakan", category: "Sopan Santun" },
+            { de: "Entschuldigung", id: "Permisi / Maaf", category: "Percakapan" },
+            { de: "Wie geht es Ihnen?", id: "Apa kabar Anda?", category: "Percakapan" },
+            { de: "Ich heiße...", id: "Nama saya...", category: "Perkenalan" },
+            { de: "Wo ist die Haltestelle?", id: "Di mana halte bus?", category: "Perjalanan" },
+            { de: "Wie viel kostet das?", id: "Berapa harganya ini?", category: "Belanja" },
+            { de: "Sprechen Sie Englisch?", id: "Apakah Anda bisa bahasa Inggris?", category: "Percakapan" },
+            { de: "Auf Wiedersehen", id: "Sampai jumpa lagi", category: "Salam" }
+        ];
+
+        /* ================= 2. STATE INTERACTION & MAP LOGIC ================= */
+        let activeStateId = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initMapEvents();
+            renderVocabCards();
+            initQuiz();
+        });
+
+        function initMapEvents() {
+            const paths = document.querySelectorAll(".state-path");
+            const tooltip = document.getElementById("tooltip");
+
+            paths.forEach(path => {
+                const id = path.getAttribute("data-id");
+                const data = bundeslaenderData[id];
+
+                path.addEventListener("mouseenter", (e) => {
+                    tooltip.style.display = "block";
+                    document.getElementById("tooltip-title").innerText = data.name;
+                    document.getElementById("tooltip-capital").innerText = "Ibukota: " + data.capital;
+                });
+
+                path.addEventListener("mousemove", (e) => {
+                    const rect = document.getElementById("germany-map").getBoundingClientRect();
+                    tooltip.style.left = (e.clientX - rect.left + 15) + "px";
+                    tooltip.style.top = (e.clientY - rect.top - 10) + "px";
+                });
+
+                path.addEventListener("mouseleave", () => {
+                    tooltip.style.display = "none";
+                });
+
+                path.addEventListener("click", () => {
+                    selectState(id);
+                });
+            });
+        }
+
+        function selectState(id) {
+            document.querySelectorAll(".state-path").forEach(p => p.classList.remove("active"));
+            const targetPath = document.querySelector(`[data-id="${id}"]`);
+            if (targetPath) targetPath.classList.add("active");
+
+            activeStateId = id;
+            const data = bundeslaenderData[id];
+
+            document.getElementById("detail-placeholder").classList.add("hidden");
+            document.getElementById("detail-content").classList.remove("hidden");
+
+            document.getElementById("state-name").innerText = data.name;
+            document.getElementById("state-capital").innerText = data.capital;
+            document.getElementById("state-region-badge").innerText = "Wilayah " + data.region;
+            document.getElementById("state-area").innerText = data.area;
+            document.getElementById("state-population").innerText = data.population;
+            document.getElementById("state-landmarks").innerText = data.landmarks;
+            document.getElementById("state-culinary").innerText = data.culinary;
+            document.getElementById("phrase-de").innerText = `"${data.phraseDe}"`;
+            document.getElementById("phrase-id").innerText = data.phraseId;
+        }
+
+        /* SEARCH & FILTER */
+        function handleSearch() {
+            const query = document.getElementById("searchInput").value.toLowerCase().trim();
+            for (let id in bundeslaenderData) {
+                const data = bundeslaenderData[id];
+                const path = document.querySelector(`[data-id="${id}"]`);
+                if (data.name.toLowerCase().includes(query) || data.capital.toLowerCase().includes(query)) {
+                    path.style.opacity = "1";
+                } else {
+                    path.style.opacity = query === "" ? "1" : "0.2";
+                }
+            }
+        }
+
+        function filterRegion(region) {
+            document.querySelectorAll(".region-filter").forEach(b => {
+                b.classList.remove("bg-de-red", "text-white");
+                b.classList.add("border-slate-300", "dark:border-zinc-700");
+            });
+            event.target.classList.add("bg-de-red", "text-white");
+
+            for (let id in bundeslaenderData) {
+                const data = bundeslaenderData[id];
+                const path = document.querySelector(`[data-id="${id}"]`);
+                if (region === "all" || data.region === region) {
+                    path.style.opacity = "1";
+                } else {
+                    path.style.opacity = "0.2";
+                }
+            }
+        }
+
+        /* ================= 3. AUDIO / TEXT-TO-SPEECH ================= */
+        function speakGermanText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Stop current speech
+                const cleanText = text.replace(/['"]+/g, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.lang = 'de-DE';
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Browser Anda tidak mendukung fitur Audio Speech.");
+            }
+        }
+
+        /* ================= 4. KUIS INTERAKTIF LOGIC ================= */
+        const quizQuestions = [
+            { q: "Apa ibukota dari Bundesland Bayern?", options: ["München", "Nürnberg", "Augsburg", "Würzburg"], answer: 0 },
+            { q: "Kota mana yang merupakan kota sekaligus negara bagian (Stadtstaat)?", options: ["Köln", "Hamburg", "Frankfurt", "Dresden"], answer: 1 },
+            { q: "Di manakah letak bangunan bersejarah Gerbang Brandenburg?", options: ["Leipzig", "Stuttgart", "Berlin", "Potsdam"], answer: 2 },
+            { q: "Istana Neuschwanstein yang terkenal terletak di wilayah...", options: ["Baden-Württemberg", "Bayern", "Hessen", "Sachsen"], answer: 1 },
+            { q: "Makanan khas 'Franzbrötchen' berasal dari kota...", options: ["Hamburg", "Bremen", "Kiel", "Rostock"], answer: 0 }
+        ];
+
+        let currentQ = 0;
+        let score = 0;
+        let timer = null;
+        let timeLeft = 15;
+
+        function initQuiz() {
+            currentQ = 0;
+            score = 0;
+            document.getElementById("quiz-score").innerText = score;
+            document.getElementById("quiz-finish").classList.add("hidden");
+            document.getElementById("quiz-body").classList.remove("hidden");
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            clearInterval(timer);
+            timeLeft = 15;
+            document.getElementById("quiz-timer").innerHTML = `<i class="fa-solid fa-clock mr-1"></i>${timeLeft}s`;
+            document.getElementById("quiz-feedback").classList.add("hidden");
+            document.getElementById("next-quiz-btn").classList.add("hidden");
+
+            const q = quizQuestions[currentQ];
+            document.getElementById("quiz-progress").innerText = `Pertanyaan ${currentQ + 1} dari ${quizQuestions.length}`;
+            document.getElementById("quiz-question").innerText = q.q;
+
+            const optionsContainer = document.getElementById("quiz-options");
+            optionsContainer.innerHTML = "";
+
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement("button");
+                btn.className = "w-full text-left p-3.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900/60 hover:bg-slate-100 dark:hover:bg-zinc-700 text-xs font-semibold text-slate-800 dark:text-zinc-200 transition flex items-center justify-between";
+                btn.innerHTML = `<span>${opt}</span><i class="fa-regular fa-circle text-slate-400"></i>`;
+                btn.onclick = () => checkAnswer(idx);
+                optionsContainer.appendChild(btn);
+            });
+
+            timer = setInterval(() => {
+                timeLeft--;
+                document.getElementById("quiz-timer").innerHTML = `<i class="fa-solid fa-clock mr-1"></i>${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    checkAnswer(-1); // Timeout
+                }
+            }, 1000);
+        }
+
+        function checkAnswer(selectedIdx) {
+            clearInterval(timer);
+            const q = quizQuestions[currentQ];
+            const buttons = document.getElementById("quiz-options").children;
+            const feedback = document.getElementById("quiz-feedback");
+
+            for (let btn of buttons) btn.disabled = true;
+
+            if (selectedIdx === q.answer) {
+                score += 10;
+                document.getElementById("quiz-score").innerText = score;
+                buttons[selectedIdx].classList.add("border-green-500", "bg-green-500/10", "text-green-600");
+                feedback.innerText = "Jawaban Benar! 🎉";
+                feedback.className = "p-3 rounded-lg text-xs font-semibold text-center bg-green-500/20 text-green-600 dark:text-green-400";
+            } else {
+                if (selectedIdx >= 0) {
+                    buttons[selectedIdx].classList.add("border-red-500", "bg-red-500/10", "text-red-600");
+                }
+                buttons[q.answer].classList.add("border-green-500", "bg-green-500/10", "text-green-600");
+                feedback.innerText = selectedIdx === -1 ? "Waktu Habis!" : "Jawaban Kurang Tepat!";
+                feedback.className = "p-3 rounded-lg text-xs font-semibold text-center bg-red-500/20 text-red-600 dark:text-red-400";
+            }
+
+            feedback.classList.remove("hidden");
+            document.getElementById("next-quiz-btn").classList.remove("hidden");
+        }
+
+        function nextQuestion() {
+            currentQ++;
+            if (currentQ < quizQuestions.length) {
+                loadQuestion();
+            } else {
+                document.getElementById("quiz-body").classList.add("hidden");
+                document.getElementById("quiz-finish").classList.remove("hidden");
+                document.getElementById("final-score").innerText = score;
+            }
+        }
+
+        function resetQuiz() {
+            initQuiz();
+        }
+
+        /* ================= 5. VOCABULARY SECTION ================= */
+        function renderVocabCards() {
+            const container = document.getElementById("vocab-grid");
+            container.innerHTML = "";
+            vocabularyData.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "p-4 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900/50 flex items-center justify-between shadow-sm hover:shadow transition";
+                card.innerHTML = `
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-de-red">${item.category}</span>
+                        <h4 class="font-bold text-sm text-slate-800 dark:text-white mt-0.5">${item.de}</h4>
+                        <p class="text-xs text-slate-500 dark:text-zinc-400">${item.id}</p>
+                    </div>
+                    <button onclick="speakGermanText('${item.de}')" class="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-800 hover:bg-de-red hover:text-white dark:hover:bg-de-red flex items-center justify-center text-xs transition">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function filterVocab() {
+            const query = document.getElementById("vocabSearch").value.toLowerCase();
+            const cards = document.getElementById("vocab-grid").children;
+            vocabularyData.forEach((item, idx) => {
+                if (item.de.toLowerCase().includes(query) || item.id.toLowerCase().includes(query)) {
+                    cards[idx].style.display = "flex";
+                } else {
+                    cards[idx].style.display = "none";
+                }
+            });
+        }
+
+        /* ================= 6. NAVIGATION & UI TABS ================= */
+        function switchTab(tabId) {
+            document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+            document.getElementById("tab-" + tabId).classList.remove("hidden");
+
+            document.querySelectorAll(".nav-btn").forEach(btn => {
+                btn.classList.remove("bg-de-red", "text-white");
+                btn.classList.add("text-slate-600", "dark:text-zinc-300");
+            });
+            const activeNav = document.getElementById("nav-" + tabId);
+            if (activeNav) {
+                activeNav.classList.add("bg-de-red", "text-white");
+            }
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle("dark");
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById("mobileMenu").classList.toggle("hidden");
+        }
+    </script>
+</body>
+</html>
